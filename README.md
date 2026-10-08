@@ -1,16 +1,16 @@
-
+# ---- folders ----
 FIG_DIR, TAB_DIR = "figures", "tables"
 for d in (FIG_DIR, TAB_DIR):
     shutil.rmtree(d, ignore_errors=True)
     os.makedirs(d)
 
-
+# ---- figures: loss curves, digits, confusion matrices ----
 plot_loss(results, "Noisy→Clean", save=f"{FIG_DIR}/loss.png", show=False)
 for (n, ep) in results:
     show_digits(results, (n, ep), save=f"{FIG_DIR}/digits_n{n}_ep{ep}.png", show=False)
     show_confusion(results, (n, ep), save=f"{FIG_DIR}/confusion_n{n}_ep{ep}.png", show=False)
 
-
+# ---- table ----
 table = make_table(results)
 table["train_time_s"] = [round(r["time"], 1) for r in results.values()]
 table.to_csv(f"{TAB_DIR}/results.csv", index=False)
@@ -18,13 +18,14 @@ table.to_csv(f"{TAB_DIR}/results.csv", index=False)
 def md_table(df):
     cols = list(df.columns)
     out = ["| " + " | ".join(cols) + " |", "| " + " | ".join("---" for _ in cols) + " |"]
-    for r in df.itertuples(index=False):          
+    for r in df.itertuples(index=False):          # itertuples keeps ints as ints (iterrows turns them into floats)
         out.append("| " + " | ".join(str(v) for v in r) + " |")
     return "\n".join(out)
 
 with open(f"{TAB_DIR}/results.md", "w") as f:
     f.write(md_table(table) + "\n")
 
+# ---- README.md (numbers come straight from the run above) ----
 cfg = json.load(open(f"{LOG_DIR}/config.json"))
 summ = []
 next(iter(results.values()))["model"].summary(print_fn=lambda s, **k: summ.append(s))
@@ -67,9 +68,11 @@ The model takes a noisy MNIST image and outputs a new image that should match th
 | runtime | {cfg.get('device')}, TensorFlow {cfg.get('tf_version')}, Python {cfg.get('python')} |
 
 ## Model
+
 ```
 {chr(10).join(summ).strip()}
 ```
+
 ## Results
 
 `noisy` columns are the baseline (the noisy test image compared with the clean original). `denoised` columns are the model output compared with the clean original. The model only helps where `denoised` beats `noisy`. MSE: lower is better. PSNR, SSIM, Acc: higher is better.
