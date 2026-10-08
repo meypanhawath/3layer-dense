@@ -1,56 +1,4 @@
-
-FIG_DIR, TAB_DIR = "figures", "tables"
-for d in (FIG_DIR, TAB_DIR):
-    shutil.rmtree(d, ignore_errors=True)
-    os.makedirs(d)
-
-
-plot_loss(results, "Noisy→Clean", save=f"{FIG_DIR}/loss.png", show=False)
-for (n, ep) in results:
-    show_digits(results, (n, ep), save=f"{FIG_DIR}/digits_n{n}_ep{ep}.png", show=False)
-    show_confusion(results, (n, ep), save=f"{FIG_DIR}/confusion_n{n}_ep{ep}.png", show=False)
-
-
-table = make_table(results)
-table["train_time_s"] = [round(r["time"], 1) for r in results.values()]
-table.to_csv(f"{TAB_DIR}/results.csv", index=False)
-
-def md_table(df):
-    cols = list(df.columns)
-    out = ["| " + " | ".join(cols) + " |", "| " + " | ".join("---" for _ in cols) + " |"]
-    for r in df.itertuples(index=False):          
-        out.append("| " + " | ".join(str(v) for v in r) + " |")
-    return "\n".join(out)
-
-with open(f"{TAB_DIR}/results.md", "w") as f:
-    f.write(md_table(table) + "\n")
-
-cfg = json.load(open(f"{LOG_DIR}/config.json"))
-summ = []
-next(iter(results.values()))["model"].summary(print_fn=lambda s, **k: summ.append(s))
-
-best = table.loc[table["MSE denoised"].idxmin()]
-beats = best["MSE denoised"] < best["MSE noisy"]
-
-fig_lines = "\n".join(
-    f"- size {n}, {ep} epochs: [digits](figures/digits_n{n}_ep{ep}.png), "
-    f"[confusion matrices](figures/confusion_n{n}_ep{ep}.png)" for (n, ep) in results)
-
-file_rows = [
-    ("`*.ipynb`", "the notebook with all code"),
-    ("`logs/epoch_log.csv`", "per-epoch loss, validation loss, learning rate and time for every run"),
-    ("`logs/results_summary.csv`", "final metrics and training time per run"),
-    ("`logs/config.json`", "seed, split, noise, learning rate, runtime and library versions"),
-]
-if os.path.isdir(f"{LOG_DIR}/runs"):
-    file_rows.append(("`logs/runs/*.csv`", "the epoch log split into one file per run"))
-file_rows += [
-    ("`tables/results.csv`, `tables/results.md`", "the results table"),
-    ("`figures/`", "loss curves, digit examples and confusion matrices"),
-]
-files_md = "\n".join(f"| {a} | {b} |" for a, b in file_rows)
-
-readme = f"""# {cfg['model']}: MNIST image denoising
+# 3layer_dense: MNIST image denoising
 
 The model takes a noisy MNIST image and outputs a new image that should match the original. It is trained on pixels only: the target is the clean original image and the loss is mean squared pixel error. This is a denoising / reconstruction task, not classification or prediction. Digit labels are used only to split the data evenly and for the optional accuracy check described under Metrics.
 
@@ -58,33 +6,66 @@ The model takes a noisy MNIST image and outputs a new image that should match th
 
 | item | value |
 | --- | --- |
-| data | MNIST, all 70,000 images, stratified subsets of {cfg.get('sizes')} images |
+| data | MNIST, all 70,000 images, stratified subsets of [2500, 5000] images |
 | split | 70% train / 10% validation / 20% test (stratified) |
-| noise | Gaussian, sigma = {cfg.get('noise_level')}, clipped to [0, 1]. Added to the input images of train, validation and test (different random noise per split). The targets are always the clean originals. |
-| epochs | {cfg.get('epochs')} |
-| optimizer | Adam, learning rate {cfg.get('lr')}, batch size {cfg.get('batch_size')} |
-| seed | {cfg.get('seed')} (same for every run) |
-| runtime | {cfg.get('device')}, TensorFlow {cfg.get('tf_version')}, Python {cfg.get('python')} |
+| noise | Gaussian, sigma = 0.15, clipped to [0, 1]. Added to the input images of train, validation and test (different random noise per split). The targets are always the clean originals. |
+| epochs | [50, 100] |
+| optimizer | Adam, learning rate 0.01, batch size 64 |
+| seed | 42 (same for every run) |
+| runtime | CPU, TensorFlow 2.21.0, Python 3.13.16 |
+
+## Model
+
+```
+Model: "sequential"
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Layer (type)                    ┃ Output Shape           ┃       Param # ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ dense (Dense)                   │ (None, 128)            │       100,480 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dense_1 (Dense)                 │ (None, 64)             │         8,256 │
+├─────────────────────────────────┼────────────────────────┼───────────────┤
+│ dense_2 (Dense)                 │ (None, 784)            │        50,960 │
+└─────────────────────────────────┴────────────────────────┴───────────────┘
+ Total params: 479,090 (1.83 MB)
+ Trainable params: 159,696 (623.81 KB)
+ Non-trainable params: 0 (0.00 B)
+ Optimizer params: 319,394 (1.22 MB)
+```
 
 ## Results
 
 `noisy` columns are the baseline (the noisy test image compared with the clean original). `denoised` columns are the model output compared with the clean original. The model only helps where `denoised` beats `noisy`. MSE: lower is better. PSNR, SSIM, Acc: higher is better.
 
-{md_table(table)}
+| size | epochs | MSE noisy | MSE denoised | PSNR noisy | PSNR denoised | SSIM noisy | SSIM denoised | Acc noisy | Acc denoised | train_time_s |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2500 | 50 | 0.0121 | 0.0213 | 19.1866 | 17.2692 | 0.6542 | 0.7761 | 0.866 | 0.832 | 14.7 |
+| 2500 | 100 | 0.0121 | 0.0228 | 19.1866 | 16.8991 | 0.6542 | 0.7746 | 0.866 | 0.828 | 27.8 |
+| 5000 | 50 | 0.0121 | 0.0184 | 19.1951 | 17.9065 | 0.6558 | 0.8078 | 0.879 | 0.872 | 23.7 |
+| 5000 | 100 | 0.0121 | 0.0195 | 19.1951 | 17.5778 | 0.6558 | 0.8 | 0.879 | 0.867 | 45.0 |
 
-Lowest denoised MSE: size {int(best['size'])}, {int(best['epochs'])} epochs, MSE {best['MSE denoised']} against a noisy baseline of {best['MSE noisy']} ({'beats' if beats else 'does not beat'} the baseline on MSE).
+Lowest denoised MSE: size 5000, 50 epochs, MSE 0.0184 against a noisy baseline of 0.0121 (does not beat the baseline on MSE).
 
 ## Figures
 
 ![loss curves](figures/loss.png)
 
-{fig_lines}
+- size 2500, 50 epochs: [digits](figures/digits_n2500_ep50.png), [confusion matrices](figures/confusion_n2500_ep50.png)
+- size 2500, 100 epochs: [digits](figures/digits_n2500_ep100.png), [confusion matrices](figures/confusion_n2500_ep100.png)
+- size 5000, 50 epochs: [digits](figures/digits_n5000_ep50.png), [confusion matrices](figures/confusion_n5000_ep50.png)
+- size 5000, 100 epochs: [digits](figures/digits_n5000_ep100.png), [confusion matrices](figures/confusion_n5000_ep100.png)
 
 ## Files
 
 | path | content |
 | --- | --- |
-{files_md}
+| `*.ipynb` | the notebook with all code |
+| `logs/epoch_log.csv` | per-epoch loss, validation loss, learning rate and time for every run |
+| `logs/results_summary.csv` | final metrics and training time per run |
+| `logs/config.json` | seed, split, noise, learning rate, runtime and library versions |
+| `logs/runs/*.csv` | the epoch log split into one file per run |
+| `tables/results.csv`, `tables/results.md` | the results table |
+| `figures/` | loss curves, digit examples and confusion matrices |
 
 ## Metrics
 
@@ -96,9 +77,3 @@ Lowest denoised MSE: size {int(best['size'])}, {int(best['epochs'])} epochs, MSE
 ## Reproduce
 
 Open the notebook in Google Colab and run all cells in order. The first logging cell clears `logs/`, so run the whole notebook from the top.
-"""
-with open("README.md", "w") as f:
-    f.write(readme)
-
-print(sorted(os.listdir(FIG_DIR)))
-print(os.listdir(TAB_DIR), "| README.md written")
