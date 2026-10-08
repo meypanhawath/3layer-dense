@@ -1,0 +1,5 @@
+model,size,epochs,MSE noisy,MSE denoised,PSNR noisy,PSNR denoised,SSIM noisy,SSIM denoised,Acc noisy,Acc denoised,noisy_train,lr,train_time_s
+3layer_dense,2500,50,0.0121,0.0213,19.1866,17.2692,0.6542,0.7761,0.866,0.832,True,0.01,14.7
+3layer_dense,2500,100,0.0121,0.0228,19.1866,16.8991,0.6542,0.7746,0.866,0.828,True,0.01,27.8
+3layer_dense,5000,50,0.0121,0.0184,19.1951,17.9065,0.6558,0.8078,0.879,0.872,True,0.01,23.7
+3layer_dense,5000,100,0.0121,0.0195,19.1951,17.5778,0.6558,0.8,0.879,0.867,True,0.01,45.0

@@ -1,0 +1,20 @@
+{
+  "model": "3layer_dense",
+  "task": "denoising: noisy input -> clean target",
+  "seed": 42,
+  "lr": 0.01,
+  "batch_size": 64,
+  "noise_level": 0.15,
+  "split": "70/20/10 stratified",
+  "sizes": [
+    2500,
+    5000
+  ],
+  "epochs": [
+    50,
+    100
+  ],
+  "device": "CPU",
+  "tf_version": "2.21.0",
+  "python": "3.13.16"
+}
